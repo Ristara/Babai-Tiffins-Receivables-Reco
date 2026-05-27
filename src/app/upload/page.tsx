@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { UploadForm } from "./UploadForm";
 
+// Allow the parse + upsert to run up to 60s (Vercel Hobby plan limit).
+// Default is 10s, which can be tight when a CSV has ~9k rows.
+export const maxDuration = 60;
+
 export default function UploadPage() {
   return (
     <main className="flex flex-1 flex-col bg-zinc-50 p-8">
