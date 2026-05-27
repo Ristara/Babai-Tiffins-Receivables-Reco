@@ -63,30 +63,21 @@ export default async function DashboardPage() {
     .order("branch", { ascending: true });
 
   return (
-    <main className="flex flex-1 flex-col bg-zinc-50 p-8">
-      <div className="mx-auto w-full max-w-5xl space-y-6">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <Link
-              href="/"
-              className="text-sm text-zinc-500 hover:text-zinc-900"
-            >
-              ← Home
-            </Link>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-              Dashboard
-            </h1>
-            <p className="mt-1 text-sm text-zinc-600">
-              All daily sales summaries, latest first.
-            </p>
-          </div>
-          <Link
-            href="/upload"
-            className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800"
-          >
-            Upload new CSV
-          </Link>
-        </header>
+    <div className="mx-auto w-full max-w-5xl space-y-6 p-8">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="mt-1 text-sm text-zinc-600">
+            All daily sales summaries, latest first.
+          </p>
+        </div>
+        <Link
+          href="/upload"
+          className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800"
+        >
+          Upload new CSV
+        </Link>
+      </header>
 
         {error && (
           <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -130,7 +121,6 @@ export default async function DashboardPage() {
               </div>
             );
           })()}
-      </div>
-    </main>
+    </div>
   );
 }
