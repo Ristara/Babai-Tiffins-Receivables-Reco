@@ -5,14 +5,21 @@ import { CATEGORIES } from "@/lib/categories";
 import { parsePetpoojaCsv, type ParseResult } from "@/lib/parse-csv";
 import { revalidatePath } from "next/cache";
 
+export type UploadWarning = {
+  skipped_dates: string[];
+  skipped_orders: number;
+};
+
 export type UploadState =
   | { kind: "idle" }
   | { kind: "error"; message: string }
   | {
       kind: "success";
-      result: ParseResult;
       filename: string;
       sale_date: string;
+      orders_saved: number;
+      branches_saved: number;
+      warning?: UploadWarning;
     };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -59,19 +66,30 @@ export async function uploadCsvForDate(
     };
   }
 
-  // Strict per-row date check: every detected sale_date must match the row.
-  const distinct = Array.from(new Set(result.days.map((d) => d.sale_date)));
-  const wrong = distinct.filter((d) => d !== expected);
-  if (wrong.length > 0) {
+  // Keep only rows for the row's date; everything else is "skipped".
+  const matchingDays = result.days.filter((d) => d.sale_date === expected);
+  const otherDays = result.days.filter((d) => d.sale_date !== expected);
+  const skipped_orders = otherDays.reduce(
+    (s, d) =>
+      s + d.branches.reduce((bs, b) => bs + b.total_orders, 0),
+    0,
+  );
+  const skipped_dates = Array.from(
+    new Set(otherDays.map((d) => d.sale_date)),
+  ).sort();
+
+  // If nothing in the file actually matches this row, refuse — otherwise
+  // the audit row would record an upload that touched zero data.
+  if (matchingDays.length === 0) {
     return {
       kind: "error",
-      message: `This row is for ${expected}, but the file contains data for ${wrong.join(", ")}. Pick the right file or use that date's row instead.`,
+      message: `This file has data for ${skipped_dates.join(", ")} but nothing for ${expected}. Pick the right file or use the matching row instead.`,
     };
   }
 
   const supabase = await createClient();
 
-  // 1. Audit row for this upload.
+  // 1. Audit row for this upload (counts reflect the whole file).
   const { data: upload, error: uploadErr } = await supabase
     .from("uploads")
     .insert({
@@ -91,9 +109,15 @@ export async function uploadCsvForDate(
     };
   }
 
-  // 2. Upsert daily_summaries + summary_lines for every branch in this CSV.
-  for (const day of result.days) {
+  // 2. Upsert daily_summaries + summary_lines — but only for the matching
+  //    date. Spillover-date rows are dropped on purpose.
+  let orders_saved = 0;
+  let branches_saved = 0;
+  for (const day of matchingDays) {
     for (const branch of day.branches) {
+      orders_saved += branch.total_orders;
+      branches_saved += 1;
+
       const { data: ds, error: dsErr } = await supabase
         .from("daily_summaries")
         .upsert(
@@ -117,8 +141,6 @@ export async function uploadCsvForDate(
         };
       }
 
-      // Upsert summary_lines — only amount + order_count are written, so
-      // any existing zoho_invoice_id / posted_at survive a re-upload.
       const lineRows = CATEGORIES.map((cat) => ({
         daily_summary_id: ds.id,
         category: cat,
@@ -141,21 +163,15 @@ export async function uploadCsvForDate(
     }
   }
 
-  // 3. Audit per-date entries so we keep full upload history.
-  const dateRows = result.days.map((d) => ({
-    upload_id: upload.id,
-    sale_date: d.sale_date,
-  }));
-  if (dateRows.length > 0) {
-    const { error: udErr } = await supabase
-      .from("upload_dates")
-      .insert(dateRows);
-    if (udErr) {
-      return {
-        kind: "error",
-        message: `Database error recording upload dates: ${udErr.message}`,
-      };
-    }
+  // 3. Audit per-date entry — only for the date we actually saved.
+  const { error: udErr } = await supabase
+    .from("upload_dates")
+    .insert({ upload_id: upload.id, sale_date: expected });
+  if (udErr) {
+    return {
+      kind: "error",
+      message: `Database error recording upload date: ${udErr.message}`,
+    };
   }
 
   revalidatePath("/dashboard");
@@ -163,8 +179,11 @@ export async function uploadCsvForDate(
 
   return {
     kind: "success",
-    result,
     filename: file.name,
     sale_date: expected,
+    orders_saved,
+    branches_saved,
+    warning:
+      skipped_orders > 0 ? { skipped_dates, skipped_orders } : undefined,
   };
 }
