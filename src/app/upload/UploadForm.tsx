@@ -1,21 +1,11 @@
 "use client";
 
 import { useActionState } from "react";
-import { CATEGORIES, SETTLEMENT, type Category } from "@/lib/categories";
-import type {
-  BranchSummary,
-  DaySummary,
-  ParseResult,
-} from "@/lib/parse-csv";
+import type { ParseResult } from "@/lib/parse-csv";
+import { DayBlock, type DayCard } from "@/components/day-summary";
 import { uploadCsv, type UploadState } from "./actions";
 
 const initialState: UploadState = { kind: "idle" };
-
-const inr = (n: number) =>
-  n.toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 
 export function UploadForm() {
   const [state, action, pending] = useActionState(uploadCsv, initialState);
@@ -84,94 +74,31 @@ function ResultPanel({
         </p>
       </div>
       {result.days.map((day) => (
-        <DayBlock key={day.sale_date} day={day} />
+        <DayBlock
+          key={day.sale_date}
+          day={day as DayCard}
+          actions={
+            <>
+              <button
+                type="button"
+                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50"
+                disabled
+                title="Coming next"
+              >
+                Mark validated
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm text-white opacity-40"
+                disabled
+                title="Phase 2 — Zoho Invoice integration"
+              >
+                Post to Zoho
+              </button>
+            </>
+          }
+        />
       ))}
     </section>
-  );
-}
-
-function DayBlock({ day }: { day: DaySummary }) {
-  const dayTotal = day.branches.reduce((s, b) => s + b.total_amount, 0);
-  const dayOrders = day.branches.reduce((s, b) => s + b.total_orders, 0);
-  return (
-    <article className="rounded-lg border border-zinc-200 bg-white p-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold">{day.sale_date}</h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            {day.branches.length} branch
-            {day.branches.length === 1 ? "" : "es"} · {dayOrders} orders · ₹
-            {inr(dayTotal)}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50"
-            disabled
-            title="Coming next: marks this day as validated"
-          >
-            Mark validated
-          </button>
-          <button
-            type="button"
-            className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm text-white opacity-40"
-            disabled
-            title="Phase 2 — Zoho Invoice integration coming soon"
-          >
-            Post to Zoho
-          </button>
-        </div>
-      </header>
-      <div className="mt-6 space-y-6">
-        {day.branches.map((b) => (
-          <BranchTable key={b.branch} branch={b} />
-        ))}
-      </div>
-    </article>
-  );
-}
-
-function BranchTable({ branch }: { branch: BranchSummary }) {
-  return (
-    <div>
-      <h3 className="text-sm font-medium text-zinc-700">
-        {branch.branch}{" "}
-        <span className="ml-2 text-xs font-normal text-zinc-500">
-          {branch.total_orders} orders · ₹{inr(branch.total_amount)}
-        </span>
-      </h3>
-      <table className="mt-2 w-full text-sm">
-        <thead>
-          <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500">
-            <th className="py-2 font-medium">Category</th>
-            <th className="py-2 text-right font-medium">Orders</th>
-            <th className="py-2 text-right font-medium">Amount (₹)</th>
-            <th className="py-2 pl-4 font-medium">Settlement</th>
-          </tr>
-        </thead>
-        <tbody>
-          {CATEGORIES.map((cat: Category) => {
-            const c = branch.by_category[cat];
-            const isZero = c.order_count === 0;
-            return (
-              <tr
-                key={cat}
-                className={`border-b border-zinc-100 ${isZero ? "text-zinc-400" : ""}`}
-              >
-                <td className="py-2">{cat}</td>
-                <td className="py-2 text-right tabular-nums">
-                  {c.order_count}
-                </td>
-                <td className="py-2 text-right tabular-nums">
-                  {inr(c.amount)}
-                </td>
-                <td className="py-2 pl-4 text-xs">{SETTLEMENT[cat]}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
   );
 }
