@@ -15,15 +15,25 @@ export function RowUploadButton({ sale_date, hasUpload }: Props) {
     uploadCsvForDate,
     initialState,
   );
-  const formRef = useRef<HTMLFormElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [warningDismissed, setWarningDismissed] = useState(false);
 
-  // A fresh state object means a new submission completed — re-open the
-  // warning modal if this submission produced one.
+  // Re-open the warning modal when a new submission finishes.
   useEffect(() => {
     setWarningDismissed(false);
   }, [state]);
+
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.set("csv", file);
+    fd.set("expected_date", sale_date);
+    // Invoke the action dispatcher directly — no <form> race.
+    action(fd);
+    // Clear the input so picking the same file again still fires onChange.
+    e.target.value = "";
+  };
 
   const showWarning =
     state.kind === "success" &&
@@ -39,19 +49,13 @@ export function RowUploadButton({ sale_date, hasUpload }: Props) {
 
   return (
     <>
-      <form ref={formRef} action={action} className="space-y-1">
-        <input type="hidden" name="expected_date" value={sale_date} />
+      <div className="space-y-1">
         <input
           ref={fileRef}
           type="file"
-          name="csv"
           accept=".csv,text/csv"
           className="hidden"
-          onChange={() => {
-            if (fileRef.current?.files?.[0]) {
-              formRef.current?.requestSubmit();
-            }
-          }}
+          onChange={onFileChange}
         />
         <button
           type="button"
@@ -78,7 +82,7 @@ export function RowUploadButton({ sale_date, hasUpload }: Props) {
           state.warning && (
             <p className="text-xs text-amber-700">Saved with warning</p>
           )}
-      </form>
+      </div>
 
       {showWarning && state.kind === "success" && state.warning && (
         <WarningModal
@@ -134,11 +138,13 @@ function WarningModal({
             </p>
             <p className="mt-2 text-sm text-zinc-700">
               The file also contained{" "}
-              <strong>{warning.skipped_orders.toLocaleString("en-IN")}</strong>{" "}
+              <strong>
+                {warning.skipped_orders.toLocaleString("en-IN")}
+              </strong>{" "}
               orders for{" "}
               <strong>{warning.skipped_dates.join(", ")}</strong> — those were
-              <strong> ignored</strong>. To save them, click{" "}
-              <em>Upload</em> on that date&apos;s row.
+              <strong> ignored</strong>. To save them, click <em>Upload</em>{" "}
+              on that date&apos;s row.
             </p>
             <p
               className="mt-3 truncate font-mono text-xs text-zinc-500"
