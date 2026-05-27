@@ -116,7 +116,26 @@ export async function uploadCsv(
     }
   }
 
+  // 3. Record (upload, sale_date) pairs so we can show full upload history
+  //    per date — daily_summaries.upload_id only tracks the LATEST upload.
+  const dateRows = result.days.map((d) => ({
+    upload_id: upload.id,
+    sale_date: d.sale_date,
+  }));
+  if (dateRows.length > 0) {
+    const { error: udErr } = await supabase
+      .from("upload_dates")
+      .insert(dateRows);
+    if (udErr) {
+      return {
+        kind: "error",
+        message: `Database error recording upload dates: ${udErr.message}`,
+      };
+    }
+  }
+
   revalidatePath("/dashboard");
+  revalidatePath("/upload");
 
   return {
     kind: "success",
