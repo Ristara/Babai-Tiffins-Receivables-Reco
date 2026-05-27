@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { UploadForm } from "./UploadForm";
 import { HistoryRow, type UploadEntry } from "./HistoryRow";
 import { RangeControls } from "./RangeControls";
 
@@ -108,20 +107,18 @@ export default async function UploadPage({
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8 p-8">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Upload daily CSV
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Uploads</h1>
         <p className="mt-1 text-sm text-zinc-600">
-          Drop in a Petpooja{" "}
+          One row per date. Click <strong>Upload</strong> on a row to add that
+          day&apos;s Petpooja{" "}
           <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs">
             Order_Summary_Report
           </code>{" "}
-          file. Re-uploading the same day will replace its totals; full
-          upload history is kept per date.
+          CSV — the file must contain data only for that date.{" "}
+          <strong>Replace upload</strong> overwrites totals while keeping the
+          full history accessible from the ⋯ menu.
         </p>
       </header>
-
-      <UploadForm />
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">

@@ -1,3 +1,5 @@
+import { RowUploadButton } from "./RowUploadButton";
+
 interface UploadEntry {
   id: string;
   filename: string;
@@ -38,28 +40,32 @@ const weekdayOf = (sale_date: string) =>
     weekday: "short",
   });
 
-// Server-rendered row. Uses HTML <details> for the ⋯ popover so no JS is needed.
 export function HistoryRow({ sale_date, uploads }: Props) {
   const count = uploads.length;
   const latest = uploads[0];
+  const hasUpload = count > 0;
+
   return (
-    <tr className="border-b border-zinc-100 last:border-b-0">
-      <td className="px-4 py-3 align-top">
+    <tr className="border-b border-zinc-100 last:border-b-0 align-top">
+      <td className="px-4 py-3">
         <div className="font-medium text-zinc-900">{sale_date}</div>
         <div className="text-xs text-zinc-500">{weekdayOf(sale_date)}</div>
       </td>
-      <td className="px-4 py-3 align-top">
-        {count === 0 ? (
-          <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
-            Not uploaded
-          </span>
-        ) : (
-          <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-            ✓ Uploaded {count} {count === 1 ? "time" : "times"}
-          </span>
-        )}
+      <td className="px-4 py-3">
+        <div className="flex flex-col items-start gap-1.5">
+          {hasUpload ? (
+            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+              ✓ Uploaded {count} {count === 1 ? "time" : "times"}
+            </span>
+          ) : (
+            <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
+              Not uploaded
+            </span>
+          )}
+          <RowUploadButton sale_date={sale_date} hasUpload={hasUpload} />
+        </div>
       </td>
-      <td className="px-4 py-3 align-top text-sm text-zinc-700">
+      <td className="px-4 py-3 text-sm text-zinc-700">
         {latest ? (
           <>
             <div
@@ -76,8 +82,8 @@ export function HistoryRow({ sale_date, uploads }: Props) {
           <span className="text-zinc-400">—</span>
         )}
       </td>
-      <td className="px-4 py-3 text-right align-top">
-        {count > 0 && (
+      <td className="px-4 py-3 text-right">
+        {hasUpload && (
           <details className="relative inline-block">
             <summary className="inline-flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 [&::-webkit-details-marker]:hidden">
               ⋯

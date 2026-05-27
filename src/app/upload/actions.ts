@@ -8,13 +8,28 @@ import { revalidatePath } from "next/cache";
 export type UploadState =
   | { kind: "idle" }
   | { kind: "error"; message: string }
-  | { kind: "success"; result: ParseResult; filename: string };
+  | {
+      kind: "success";
+      result: ParseResult;
+      filename: string;
+      sale_date: string;
+    };
 
-export async function uploadCsv(
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export async function uploadCsvForDate(
   _prev: UploadState,
   formData: FormData,
 ): Promise<UploadState> {
   const file = formData.get("csv");
+  const expected = String(formData.get("expected_date") ?? "");
+
+  if (!DATE_RE.test(expected)) {
+    return {
+      kind: "error",
+      message: "Internal error: invalid date binding on this row.",
+    };
+  }
   if (!(file instanceof File) || file.size === 0) {
     return { kind: "error", message: "No file selected." };
   }
@@ -40,13 +55,23 @@ export async function uploadCsv(
     return {
       kind: "error",
       message:
-        "No valid order rows found. Check that this is a Petpooja Order_Summary_Report CSV.",
+        "No valid order rows found. Is this a Petpooja Order_Summary_Report?",
+    };
+  }
+
+  // Strict per-row date check: every detected sale_date must match the row.
+  const distinct = Array.from(new Set(result.days.map((d) => d.sale_date)));
+  const wrong = distinct.filter((d) => d !== expected);
+  if (wrong.length > 0) {
+    return {
+      kind: "error",
+      message: `This row is for ${expected}, but the file contains data for ${wrong.join(", ")}. Pick the right file or use that date's row instead.`,
     };
   }
 
   const supabase = await createClient();
 
-  // 1. Insert the upload audit row.
+  // 1. Audit row for this upload.
   const { data: upload, error: uploadErr } = await supabase
     .from("uploads")
     .insert({
@@ -62,11 +87,11 @@ export async function uploadCsv(
   if (uploadErr || !upload) {
     return {
       kind: "error",
-      message: `Database error recording the upload: ${uploadErr?.message ?? "unknown"}`,
+      message: `Database error recording upload: ${uploadErr?.message ?? "unknown"}`,
     };
   }
 
-  // 2. For each (day × branch): upsert daily_summaries, then upsert summary_lines.
+  // 2. Upsert daily_summaries + summary_lines for every branch in this CSV.
   for (const day of result.days) {
     for (const branch of day.branches) {
       const { data: ds, error: dsErr } = await supabase
@@ -116,8 +141,7 @@ export async function uploadCsv(
     }
   }
 
-  // 3. Record (upload, sale_date) pairs so we can show full upload history
-  //    per date — daily_summaries.upload_id only tracks the LATEST upload.
+  // 3. Audit per-date entries so we keep full upload history.
   const dateRows = result.days.map((d) => ({
     upload_id: upload.id,
     sale_date: d.sale_date,
@@ -141,5 +165,6 @@ export async function uploadCsv(
     kind: "success",
     result,
     filename: file.name,
+    sale_date: expected,
   };
 }
