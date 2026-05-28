@@ -55,10 +55,12 @@ export function PosManualForm({
   sale_date,
   branch,
   data,
+  locked = false,
 }: {
   sale_date: string;
   branch: string;
   data: PosManual;
+  locked?: boolean;
 }) {
   const [state, action, pending] = useActionState(savePosManual, initial);
 
@@ -70,6 +72,13 @@ export function PosManualForm({
       <input type="hidden" name="sale_date" value={sale_date} />
       <input type="hidden" name="branch" value={branch} />
 
+      {locked && (
+        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+          🔒 This day is locked. An admin must unlock it before anyone can edit.
+        </p>
+      )}
+
+      <fieldset disabled={locked} className="space-y-6 disabled:opacity-60">
       <div>
         <h3 className="mb-2 text-sm font-semibold">Settlement split</h3>
         <div className="flex flex-wrap gap-4">
@@ -121,11 +130,12 @@ export function PosManualForm({
           <NumField name="closing_cash" label="Closing Cash" defaultValue={data.closing_cash} />
         </div>
       </div>
+      </fieldset>
 
       <div className="flex items-center gap-3">
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || locked}
           className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
         >
           {pending ? "Saving…" : "Save entries"}

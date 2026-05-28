@@ -48,6 +48,22 @@ export async function savePosManual(
     return { kind: "error", message: "You don't have access to this outlet." };
   }
 
+  const admin = createAdminClient();
+
+  // Locked days cannot be edited by anyone (including admins) until unlocked.
+  const { data: lockRow } = await admin
+    .from("pos_manual")
+    .select("locked")
+    .eq("sale_date", sale_date)
+    .eq("branch", branch)
+    .maybeSingle();
+  if (lockRow?.locked) {
+    return {
+      kind: "error",
+      message: "This day is locked. An admin must unlock it before editing.",
+    };
+  }
+
   const row = {
     sale_date,
     branch,
@@ -73,10 +89,51 @@ export async function savePosManual(
     updated_by: me.id,
   };
 
-  const admin = createAdminClient();
   const { error } = await admin
     .from("pos_manual")
     .upsert(row, { onConflict: "sale_date,branch" });
+  if (error) {
+    return { kind: "error", message: error.message };
+  }
+
+  revalidatePath("/pos-tracker");
+  return { kind: "success" };
+}
+
+export type LockState =
+  | { kind: "idle" }
+  | { kind: "error"; message: string }
+  | { kind: "success" };
+
+// Admin-only lock/unlock for a (date, branch). When locked, savePosManual
+// rejects edits from everyone until an admin unlocks.
+export async function setLock(
+  _prev: LockState,
+  formData: FormData,
+): Promise<LockState> {
+  const me = await getCurrentUser();
+  if (!me || me.role !== "admin") {
+    return { kind: "error", message: "Only admins can lock or unlock." };
+  }
+
+  const sale_date = String(formData.get("sale_date") ?? "");
+  const branch = String(formData.get("branch") ?? "");
+  const locked = String(formData.get("locked") ?? "") === "true";
+  if (!DATE_RE.test(sale_date) || !branch) {
+    return { kind: "error", message: "Missing date or outlet." };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("pos_manual").upsert(
+    {
+      sale_date,
+      branch,
+      locked,
+      locked_by: locked ? me.id : null,
+      locked_at: locked ? new Date().toISOString() : null,
+    },
+    { onConflict: "sale_date,branch" },
+  );
   if (error) {
     return { kind: "error", message: error.message };
   }

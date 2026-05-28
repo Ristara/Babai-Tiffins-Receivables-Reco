@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser, getAllowedBranches } from "@/lib/supabase/auth";
 import { type Category } from "@/lib/categories";
 import { PosManualForm, type PosManual } from "./PosManualForm";
+import { LockButton } from "./LockButton";
 
 export const dynamic = "force-dynamic";
 
@@ -106,6 +107,7 @@ export default async function PosTrackerPage({
     shortage: null,
     closing_cash: null,
   };
+  let locked = false;
   if (branch && date) {
     const { data: pm } = await createAdminClient()
       .from("pos_manual")
@@ -113,7 +115,10 @@ export default async function PosTrackerPage({
       .eq("branch", branch)
       .eq("sale_date", date)
       .maybeSingle();
-    if (pm) manual = { ...manual, ...(pm as Partial<PosManual>) };
+    if (pm) {
+      manual = { ...manual, ...(pm as Partial<PosManual>) };
+      locked = !!(pm as { locked?: boolean }).locked;
+    }
   }
 
   // Show a manual number, or DASH if not entered.
@@ -226,6 +231,17 @@ export default async function PosTrackerPage({
 
       {/* The card */}
       <div className="overflow-hidden rounded-lg border border-zinc-300">
+        {/* Lock bar (top-right) */}
+        {branch && (
+          <div className="flex items-center justify-end border-b border-zinc-200 bg-white px-4 py-2">
+            <LockButton
+              sale_date={date}
+              branch={branch}
+              locked={locked}
+              isAdmin={me.role === "admin"}
+            />
+          </div>
+        )}
         {/* Header strip */}
         <div className="grid grid-cols-2 divide-x divide-zinc-200 border-b border-zinc-200">
           <div className="grid grid-cols-2 divide-y divide-zinc-200">
@@ -364,7 +380,12 @@ export default async function PosTrackerPage({
             These are the figures not in the Petpooja file — fill them here and
             they&apos;ll appear in the card above for {branch} on {fmtDate(date)}.
           </p>
-          <PosManualForm sale_date={date} branch={branch} data={manual} />
+          <PosManualForm
+            sale_date={date}
+            branch={branch}
+            data={manual}
+            locked={locked}
+          />
         </section>
       )}
     </div>
