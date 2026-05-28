@@ -12,14 +12,14 @@ export type SaveState =
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function num(v: FormDataEntryValue | null): number | null {
-  const s = String(v ?? "").trim();
+  const s = String(v ?? "").replace(/,/g, "").trim();
   if (s === "") return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
 
 function intOrNull(v: FormDataEntryValue | null): number | null {
-  const s = String(v ?? "").trim();
+  const s = String(v ?? "").replace(/,/g, "").trim();
   if (s === "") return null;
   const n = Number.parseInt(s, 10);
   return Number.isFinite(n) ? n : null;

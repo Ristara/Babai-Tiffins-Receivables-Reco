@@ -29,6 +29,29 @@ const initial: SaveState = { kind: "idle" };
 const DASH = "—";
 const inr0 = (n: number) => Math.round(n).toLocaleString("en-IN");
 
+// Display a stored number with Indian commas (empty for null).
+const fmtDisplay = (n: number | null | undefined) =>
+  n == null ? "" : n.toLocaleString("en-IN");
+
+// Re-format whatever the user typed into Indian commas (called on blur).
+function fmtIN(raw: string): string {
+  const cleaned = raw.replace(/,/g, "").trim();
+  if (cleaned === "") return "";
+  const neg = cleaned.startsWith("-");
+  const body = neg ? cleaned.slice(1) : cleaned;
+  if (!/^\d*\.?\d*$/.test(body)) return raw; // leave non-numeric as-is
+  const [intPart, decPart] = body.split(".");
+  const formatted = Number(intPart || "0").toLocaleString("en-IN");
+  return (neg ? "-" : "") + formatted + (decPart !== undefined ? "." + decPart : "");
+}
+
+const onBlurFormat = (e: React.FocusEvent<HTMLInputElement>) => {
+  e.target.value = fmtIN(e.target.value);
+};
+
+const cellClass =
+  "w-28 rounded border border-zinc-200 bg-white px-2 py-1 text-right text-sm focus:border-zinc-500 focus:outline-none disabled:border-transparent disabled:bg-transparent disabled:px-0";
+
 export interface Derived {
   totalSales: number;
   totalOrders: number;
@@ -40,7 +63,6 @@ export interface Derived {
   creditSale: number;
 }
 
-const v = (n: number | null | undefined) => (n == null ? "" : String(n));
 
 function NumCell({
   name,
@@ -51,12 +73,13 @@ function NumCell({
 }) {
   return (
     <input
-      type="number"
-      step="0.01"
+      type="text"
+      inputMode="decimal"
       name={name}
-      defaultValue={v(value)}
+      defaultValue={fmtDisplay(value)}
+      onBlur={onBlurFormat}
       placeholder={DASH}
-      className="w-28 rounded border border-zinc-200 bg-white px-2 py-1 text-right text-sm focus:border-zinc-500 focus:outline-none disabled:border-transparent disabled:bg-transparent disabled:px-0"
+      className={cellClass}
     />
   );
 }
@@ -314,19 +337,22 @@ function BillRow({
       <td className="px-4 py-1.5">{label}</td>
       <td className="px-2 py-1.5 text-right">
         <input
-          type="number"
+          type="text"
+          inputMode="numeric"
           name={ordersName}
-          defaultValue={v(orders)}
+          defaultValue={fmtDisplay(orders)}
+          onBlur={onBlurFormat}
           placeholder={DASH}
           className="w-16 rounded border border-zinc-200 bg-white px-2 py-1 text-right text-sm focus:border-zinc-500 focus:outline-none disabled:border-transparent disabled:bg-transparent disabled:px-0"
         />
       </td>
       <td className="px-4 py-1.5 text-right">
         <input
-          type="number"
-          step="0.01"
+          type="text"
+          inputMode="decimal"
           name={valueName}
-          defaultValue={v(value)}
+          defaultValue={fmtDisplay(value)}
+          onBlur={onBlurFormat}
           placeholder={DASH}
           className="w-24 rounded border border-zinc-200 bg-white px-2 py-1 text-right text-sm focus:border-zinc-500 focus:outline-none disabled:border-transparent disabled:bg-transparent disabled:px-0"
         />
