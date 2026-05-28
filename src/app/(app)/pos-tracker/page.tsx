@@ -4,14 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser, getAllowedBranches } from "@/lib/supabase/auth";
 import { type Category } from "@/lib/categories";
-import { PosManualForm, type PosManual } from "./PosManualForm";
-import { LockButton } from "./LockButton";
+import { PosCard, type Derived, type PosManual } from "./PosCard";
 
 export const dynamic = "force-dynamic";
-
-const DASH = "—";
-
-const inr0 = (n: number) => Math.round(n).toLocaleString("en-IN");
 
 function fmtDate(d: string): string {
   return new Date(d + "T00:00:00+05:30").toLocaleDateString("en-IN", {
@@ -28,6 +23,27 @@ interface Line {
   order_count: number;
 }
 
+const EMPTY_MANUAL: PosManual = {
+  magicpin: null,
+  upi: null,
+  edc_machine: null,
+  wallet: null,
+  bills_modified_orders: null,
+  bills_modified_value: null,
+  bills_reprinted_orders: null,
+  bills_reprinted_value: null,
+  cancelled_orders: null,
+  cancelled_value: null,
+  modified_kots_orders: null,
+  modified_kots_value: null,
+  opening_cash: null,
+  cash_expenses: null,
+  last_deposit_date: null,
+  last_deposit_amount: null,
+  shortage: null,
+  closing_cash: null,
+};
+
 export default async function PosTrackerPage({
   searchParams,
 }: {
@@ -39,14 +55,12 @@ export default async function PosTrackerPage({
 
   const params = await searchParams;
   const branchParam = String(params.branch ?? "");
-  // Only allow an outlet the user can access; otherwise default to the first.
   const branch = ALLOWED.includes(branchParam)
     ? branchParam
     : (ALLOWED[0] ?? "");
 
   const supabase = await createClient();
 
-  // Resolve the date: use ?date=, else the latest date that has data.
   let date = params.date ? String(params.date) : "";
   if (!date) {
     const { data: latest } = await supabase
@@ -60,12 +74,13 @@ export default async function PosTrackerPage({
 
   const { data: row } = await supabase
     .from("daily_summaries")
-    .select("total_amount, total_orders, summary_lines (category, amount, order_count)")
+    .select(
+      "total_amount, total_orders, summary_lines (category, amount, order_count)",
+    )
     .eq("branch", branch)
     .eq("sale_date", date)
     .maybeSingle();
 
-  // Category lookups from what we currently store (the 9-category model).
   const cat: Record<Category, { amount: number; orders: number }> = {
     Cash: { amount: 0, orders: 0 },
     PayTm: { amount: 0, orders: 0 },
@@ -86,27 +101,8 @@ export default async function PosTrackerPage({
     }
   }
 
-  // Manual entries saved for this (date, branch).
-  let manual: PosManual = {
-    magicpin: null,
-    upi: null,
-    edc_machine: null,
-    wallet: null,
-    bills_modified_orders: null,
-    bills_modified_value: null,
-    bills_reprinted_orders: null,
-    bills_reprinted_value: null,
-    cancelled_orders: null,
-    cancelled_value: null,
-    modified_kots_orders: null,
-    modified_kots_value: null,
-    opening_cash: null,
-    cash_expenses: null,
-    last_deposit_date: null,
-    last_deposit_amount: null,
-    shortage: null,
-    closing_cash: null,
-  };
+  // Manual entries + lock state for this (date, branch).
+  let manual: PosManual = EMPTY_MANUAL;
   let locked = false;
   if (branch && date) {
     const { data: pm } = await createAdminClient()
@@ -116,76 +112,32 @@ export default async function PosTrackerPage({
       .eq("sale_date", date)
       .maybeSingle();
     if (pm) {
-      manual = { ...manual, ...(pm as Partial<PosManual>) };
+      manual = { ...EMPTY_MANUAL, ...(pm as Partial<PosManual>) };
       locked = !!(pm as { locked?: boolean }).locked;
     }
   }
 
-  // Show a manual number, or DASH if not entered.
-  const m = (n: number | null) => (n == null ? DASH : inr0(n));
-
-  const totalSales = Number(row?.total_amount) || 0;
-  const totalOrders = row?.total_orders || 0;
-  const billingCounter = cat.Cash.amount + cat.PayTm.amount;
-
-  const salesRows: Array<{ label: string; value: string }> = [
-    { label: "Swiggy", value: inr0(cat.Swiggy.amount) },
-    { label: "Zomato", value: inr0(cat.Zomato.amount) },
-    { label: "Magicpin", value: m(manual.magicpin) },
-    { label: "Ownly", value: inr0(cat.Ownly.amount) },
-    { label: "Billing Counter", value: inr0(billingCounter) },
-  ];
-
-  const settlementRows: Array<{ label: string; value: string }> = [
-    { label: "UPI", value: m(manual.upi) },
-    { label: "EDC Machine", value: m(manual.edc_machine) },
-    { label: "Credit Sale", value: inr0(cat.Ajantha.amount) },
-    { label: "Wallet", value: m(manual.wallet) },
-    { label: "Cash Sale", value: inr0(cat.Cash.amount) },
-  ];
-
-  const billingRows: Array<{ label: string; orders: string; value: string }> = [
-    {
-      label: "Bills Modified",
-      orders: manual.bills_modified_orders == null ? DASH : String(manual.bills_modified_orders),
-      value: m(manual.bills_modified_value),
-    },
-    {
-      label: "Bills Re-Printed",
-      orders: manual.bills_reprinted_orders == null ? DASH : String(manual.bills_reprinted_orders),
-      value: m(manual.bills_reprinted_value),
-    },
-    {
-      label: "Cancelled",
-      orders: manual.cancelled_orders == null ? DASH : String(manual.cancelled_orders),
-      value: m(manual.cancelled_value),
-    },
-    {
-      label: "Modified KOTs",
-      orders: manual.modified_kots_orders == null ? DASH : String(manual.modified_kots_orders),
-      value: m(manual.modified_kots_value),
-    },
-  ];
-  const cashRows: Array<{ label: string; value: string }> = [
-    { label: "Opening Cash", value: m(manual.opening_cash) },
-    { label: "Cash Expenses", value: m(manual.cash_expenses) },
-    { label: "Last Cash Deposit Date", value: manual.last_deposit_date ?? DASH },
-    { label: "Last Cash Deposit Amount", value: m(manual.last_deposit_amount) },
-    { label: "Shortage", value: m(manual.shortage) },
-    { label: "Closing Cash", value: m(manual.closing_cash) },
-  ];
+  const derived: Derived = {
+    totalSales: Number(row?.total_amount) || 0,
+    totalOrders: row?.total_orders || 0,
+    swiggy: cat.Swiggy.amount,
+    zomato: cat.Zomato.amount,
+    ownly: cat.Ownly.amount,
+    billingCounter: cat.Cash.amount + cat.PayTm.amount,
+    cashSale: cat.Cash.amount,
+    creditSale: cat.Ajantha.amount,
+  };
 
   const hasData = !!row;
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 p-8">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">POS Tracker</h1>
-          <p className="mt-1 text-sm text-zinc-600">
-            Per-outlet daily operations card.
-          </p>
-        </div>
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight">POS Tracker</h1>
+        <p className="mt-1 text-sm text-zinc-600">
+          Per-outlet daily operations card. Edit the manual cells inline and
+          Save.
+        </p>
       </header>
 
       {/* Selectors */}
@@ -206,7 +158,11 @@ export default async function PosTrackerPage({
             {b}
           </Link>
         ))}
-        <form method="GET" action="/pos-tracker" className="flex items-center gap-2">
+        <form
+          method="GET"
+          action="/pos-tracker"
+          className="flex items-center gap-2"
+        >
           <input type="hidden" name="branch" value={branch} />
           <input
             type="date"
@@ -225,168 +181,26 @@ export default async function PosTrackerPage({
 
       {!hasData && (
         <div className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          No data for {branch} on {date}. Upload that day&apos;s CSV first.
+          No sales data for {branch} on {fmtDate(date)} — derived figures will
+          be ₹0. You can still record manual entries below.
         </div>
       )}
 
-      {/* The card */}
-      <div className="overflow-hidden rounded-lg border border-zinc-300">
-        {/* Lock bar (top-right) */}
-        {branch && (
-          <div className="flex items-center justify-end border-b border-zinc-200 bg-white px-4 py-2">
-            <LockButton
-              sale_date={date}
-              branch={branch}
-              locked={locked}
-              isAdmin={me.role === "admin"}
-            />
-          </div>
-        )}
-        {/* Header strip */}
-        <div className="grid grid-cols-2 divide-x divide-zinc-200 border-b border-zinc-200">
-          <div className="grid grid-cols-2 divide-y divide-zinc-200">
-            <div className="flex items-center justify-between bg-blue-50 px-4 py-2 text-sm font-semibold">
-              <span>Outlet</span>
-              <span>{branch}</span>
-            </div>
-            <div className="flex items-center justify-between bg-blue-50 px-4 py-2 text-sm font-semibold">
-              <span>Date</span>
-              <span>{fmtDate(date)}</span>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 divide-y divide-zinc-200">
-            <div className="flex items-center justify-between px-4 py-2 text-sm">
-              <span className="font-semibold">Total Sales</span>
-              <span className="font-semibold tabular-nums">
-                {inr0(totalSales)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between px-4 py-2 text-sm">
-              <span className="font-semibold">Total Orders</span>
-              <span className="font-semibold tabular-nums">{totalOrders}</span>
-            </div>
-          </div>
+      {branch ? (
+        <PosCard
+          sale_date={date}
+          dateLabel={fmtDate(date)}
+          branch={branch}
+          derived={derived}
+          manual={manual}
+          locked={locked}
+          isAdmin={me.role === "admin"}
+        />
+      ) : (
+        <div className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          You don&apos;t have access to any outlet yet. Ask an admin to assign
+          one.
         </div>
-
-        {/* Sales + Billing */}
-        <div className="grid grid-cols-2 divide-x divide-zinc-200 border-b border-zinc-200">
-          <div>
-            <div className="bg-blue-100 px-4 py-2 text-sm font-semibold">
-              Sales Details
-            </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 text-xs text-zinc-500">
-                  <th className="px-4 py-1.5 text-left font-medium">
-                    Sales Channel
-                  </th>
-                  <th className="px-4 py-1.5 text-right font-medium">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {salesRows.map((r) => (
-                  <tr key={r.label} className="border-b border-zinc-100">
-                    <td className="px-4 py-1.5">{r.label}</td>
-                    <td className="px-4 py-1.5 text-right tabular-nums">
-                      {r.value}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div>
-            <div className="bg-emerald-100 px-4 py-2 text-sm font-semibold">
-              Billing Details
-            </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 text-xs text-zinc-500">
-                  <th className="px-4 py-1.5 text-left font-medium">Details</th>
-                  <th className="px-4 py-1.5 text-right font-medium">Orders</th>
-                  <th className="px-4 py-1.5 text-right font-medium">Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {billingRows.map((r) => (
-                  <tr key={r.label} className="border-b border-zinc-100">
-                    <td className="px-4 py-1.5">{r.label}</td>
-                    <td className="px-4 py-1.5 text-right tabular-nums text-zinc-400">
-                      {r.orders}
-                    </td>
-                    <td className="px-4 py-1.5 text-right tabular-nums text-zinc-400">
-                      {r.value}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Settlement + Cash management */}
-        <div>
-          <div className="bg-orange-200 px-4 py-2 text-sm font-semibold">
-            Settlement Details
-          </div>
-          <div className="grid grid-cols-2 divide-x divide-zinc-200">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 text-xs text-zinc-500">
-                  <th className="px-4 py-1.5 text-left font-medium">
-                    Payment Channel
-                  </th>
-                  <th className="px-4 py-1.5 text-right font-medium">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {settlementRows.map((r) => (
-                  <tr key={r.label} className="border-b border-zinc-100">
-                    <td className="px-4 py-1.5">{r.label}</td>
-                    <td className="px-4 py-1.5 text-right tabular-nums">
-                      {r.value}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <table className="w-full text-sm">
-              <tbody>
-                {cashRows.map((r) => (
-                  <tr
-                    key={r.label}
-                    className={`border-b border-zinc-100 ${
-                      r.label === "Closing Cash" ? "font-semibold" : ""
-                    }`}
-                  >
-                    <td className="px-4 py-1.5">{r.label}</td>
-                    <td className="px-4 py-1.5 text-right tabular-nums text-zinc-400">
-                      {r.value}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {branch && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-medium tracking-tight">
-            Edit manual entries
-          </h2>
-          <p className="text-xs text-zinc-500">
-            These are the figures not in the Petpooja file — fill them here and
-            they&apos;ll appear in the card above for {branch} on {fmtDate(date)}.
-          </p>
-          <PosManualForm
-            sale_date={date}
-            branch={branch}
-            data={manual}
-            locked={locked}
-          />
-        </section>
       )}
     </div>
   );
