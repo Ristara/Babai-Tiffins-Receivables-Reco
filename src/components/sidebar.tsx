@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { logout } from "@/app/login/actions";
 
 interface NavItem {
   href: string;
@@ -62,7 +63,13 @@ const items: NavItem[] = [
   },
 ];
 
-export function Sidebar() {
+export function Sidebar({
+  userEmail,
+  role,
+}: {
+  userEmail?: string | null;
+  role?: "admin" | "staff";
+}) {
   const pathname = usePathname();
 
   return (
@@ -99,6 +106,24 @@ export function Sidebar() {
           })}
         </ul>
       </nav>
+      {userEmail && (
+        <div className="border-t border-zinc-200 px-4 py-3">
+          <div className="truncate text-xs font-medium text-zinc-700" title={userEmail}>
+            {userEmail}
+          </div>
+          <div className="mb-2 text-[11px] uppercase tracking-wide text-zinc-400">
+            {role === "admin" ? "Admin" : "Staff"}
+          </div>
+          <form action={logout}>
+            <button
+              type="submit"
+              className="text-xs font-medium text-red-600 hover:underline"
+            >
+              Sign out
+            </button>
+          </form>
+        </div>
+      )}
     </aside>
   );
 }
