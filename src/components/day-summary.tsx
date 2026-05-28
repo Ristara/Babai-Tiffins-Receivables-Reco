@@ -1,6 +1,4 @@
 import { CATEGORIES, SETTLEMENT, type Category } from "@/lib/categories";
-import { PaytmReconcileCell } from "@/app/dashboard/PaytmReconcileCell";
-import type { PaytmCategory } from "@/lib/paytm-config";
 
 const inr = (n: number) =>
   n.toLocaleString("en-IN", {
@@ -8,16 +6,12 @@ const inr = (n: number) =>
     maximumFractionDigits: 2,
   });
 
-const RECONCILABLE: ReadonlySet<Category> = new Set<Category>(["PayTm", "ODC"]);
-
 export interface BranchCard {
   branch: string;
   status?: string;
   total_amount: number;
   total_orders: number;
   by_category: Record<Category, { amount: number; order_count: number }>;
-  // Bank-settled amount per category (PayTm / ODC only). null = not fetched yet.
-  settled?: Partial<Record<Category, number | null>>;
 }
 
 export interface DayCard {
@@ -49,20 +43,14 @@ export function DayBlock({
       </header>
       <div className="mt-6 space-y-6">
         {day.branches.map((b) => (
-          <BranchTable key={b.branch} branch={b} sale_date={day.sale_date} />
+          <BranchTable key={b.branch} branch={b} />
         ))}
       </div>
     </article>
   );
 }
 
-export function BranchTable({
-  branch,
-  sale_date,
-}: {
-  branch: BranchCard;
-  sale_date: string;
-}) {
+export function BranchTable({ branch }: { branch: BranchCard }) {
   return (
     <div>
       <h3 className="flex flex-wrap items-center gap-2 text-sm font-medium text-zinc-700">
@@ -79,7 +67,6 @@ export function BranchTable({
             <th className="py-2 text-right font-medium">Orders</th>
             <th className="py-2 text-right font-medium">Amount (₹)</th>
             <th className="py-2 pl-4 font-medium">Settlement</th>
-            <th className="py-2 pl-4 text-right font-medium">Bank (PayTm)</th>
           </tr>
         </thead>
         <tbody>
@@ -89,7 +76,6 @@ export function BranchTable({
               order_count: 0,
             };
             const isZero = c.order_count === 0;
-            const reconcilable = RECONCILABLE.has(cat);
             return (
               <tr
                 key={cat}
@@ -103,17 +89,6 @@ export function BranchTable({
                   {inr(c.amount)}
                 </td>
                 <td className="py-2 pl-4 text-xs">{SETTLEMENT[cat]}</td>
-                <td className="py-2 pl-4">
-                  {reconcilable ? (
-                    <PaytmReconcileCell
-                      sale_date={sale_date}
-                      branch={branch.branch}
-                      category={cat as PaytmCategory}
-                      petpoojaAmount={c.amount}
-                      settledAmount={branch.settled?.[cat] ?? null}
-                    />
-                  ) : null}
-                </td>
               </tr>
             );
           })}
