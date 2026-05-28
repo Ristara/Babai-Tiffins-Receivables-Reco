@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser, getAllowedBranches } from "@/lib/supabase/auth";
 import { type Category } from "@/lib/categories";
+import { PosManualForm, type PosManual } from "./PosManualForm";
 
 export const dynamic = "force-dynamic";
 
@@ -83,43 +85,89 @@ export default async function PosTrackerPage({
     }
   }
 
+  // Manual entries saved for this (date, branch).
+  let manual: PosManual = {
+    magicpin: null,
+    upi: null,
+    edc_machine: null,
+    wallet: null,
+    bills_modified_orders: null,
+    bills_modified_value: null,
+    bills_reprinted_orders: null,
+    bills_reprinted_value: null,
+    cancelled_orders: null,
+    cancelled_value: null,
+    modified_kots_orders: null,
+    modified_kots_value: null,
+    opening_cash: null,
+    cash_expenses: null,
+    last_deposit_date: null,
+    last_deposit_amount: null,
+    shortage: null,
+    closing_cash: null,
+  };
+  if (branch && date) {
+    const { data: pm } = await createAdminClient()
+      .from("pos_manual")
+      .select("*")
+      .eq("branch", branch)
+      .eq("sale_date", date)
+      .maybeSingle();
+    if (pm) manual = { ...manual, ...(pm as Partial<PosManual>) };
+  }
+
+  // Show a manual number, or DASH if not entered.
+  const m = (n: number | null) => (n == null ? DASH : inr0(n));
+
   const totalSales = Number(row?.total_amount) || 0;
   const totalOrders = row?.total_orders || 0;
   const billingCounter = cat.Cash.amount + cat.PayTm.amount;
 
-  // Sales Details — derived where possible. Magicpin not yet stored.
   const salesRows: Array<{ label: string; value: string }> = [
     { label: "Swiggy", value: inr0(cat.Swiggy.amount) },
     { label: "Zomato", value: inr0(cat.Zomato.amount) },
-    { label: "Magicpin", value: DASH },
+    { label: "Magicpin", value: m(manual.magicpin) },
     { label: "Ownly", value: inr0(cat.Ownly.amount) },
     { label: "Billing Counter", value: inr0(billingCounter) },
   ];
 
-  // Settlement Details — Cash + Credit derivable; UPI/EDC/Wallet need the
-  // payment-mode split that the current storage collapses into "PayTm".
   const settlementRows: Array<{ label: string; value: string }> = [
-    { label: "UPI", value: DASH },
-    { label: "EDC Machine", value: DASH },
+    { label: "UPI", value: m(manual.upi) },
+    { label: "EDC Machine", value: m(manual.edc_machine) },
     { label: "Credit Sale", value: inr0(cat.Ajantha.amount) },
-    { label: "Wallet", value: DASH },
+    { label: "Wallet", value: m(manual.wallet) },
     { label: "Cash Sale", value: inr0(cat.Cash.amount) },
   ];
 
-  // Billing Details + Cash management — manual entry (not in the order CSV).
   const billingRows: Array<{ label: string; orders: string; value: string }> = [
-    { label: "Bills Modified", orders: DASH, value: DASH },
-    { label: "Bills Re-Printed", orders: DASH, value: DASH },
-    { label: "Cancelled", orders: DASH, value: DASH },
-    { label: "Modified KOTs", orders: DASH, value: DASH },
+    {
+      label: "Bills Modified",
+      orders: manual.bills_modified_orders == null ? DASH : String(manual.bills_modified_orders),
+      value: m(manual.bills_modified_value),
+    },
+    {
+      label: "Bills Re-Printed",
+      orders: manual.bills_reprinted_orders == null ? DASH : String(manual.bills_reprinted_orders),
+      value: m(manual.bills_reprinted_value),
+    },
+    {
+      label: "Cancelled",
+      orders: manual.cancelled_orders == null ? DASH : String(manual.cancelled_orders),
+      value: m(manual.cancelled_value),
+    },
+    {
+      label: "Modified KOTs",
+      orders: manual.modified_kots_orders == null ? DASH : String(manual.modified_kots_orders),
+      value: m(manual.modified_kots_value),
+    },
   ];
   const cashRows: Array<{ label: string; value: string }> = [
-    { label: "Opening Cash", value: DASH },
-    { label: "Cash Expenses", value: DASH },
-    { label: "Last Cash Deposit Date", value: DASH },
-    { label: "Last Cash Deposit Amount", value: DASH },
-    { label: "Shortage", value: DASH },
-    { label: "Closing Cash", value: DASH },
+    { label: "Opening Cash", value: m(manual.opening_cash) },
+    { label: "Cash Expenses", value: m(manual.cash_expenses) },
+    { label: "Last Cash Deposit Date", value: manual.last_deposit_date ?? DASH },
+    { label: "Last Cash Deposit Amount", value: m(manual.last_deposit_amount) },
+    { label: "Shortage", value: m(manual.shortage) },
+    { label: "Closing Cash", value: m(manual.closing_cash) },
   ];
 
   const hasData = !!row;
@@ -307,11 +355,18 @@ export default async function PosTrackerPage({
         </div>
       </div>
 
-      <p className="text-xs text-zinc-500">
-        Cells showing <span className="font-medium">{DASH}</span> need your
-        number logic (payment-mode split for UPI / EDC / Wallet, billing-ops
-        counts, and cash management). Send the rules and I&apos;ll wire them up.
-      </p>
+      {branch && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-medium tracking-tight">
+            Edit manual entries
+          </h2>
+          <p className="text-xs text-zinc-500">
+            These are the figures not in the Petpooja file — fill them here and
+            they&apos;ll appear in the card above for {branch} on {fmtDate(date)}.
+          </p>
+          <PosManualForm sale_date={date} branch={branch} data={manual} />
+        </section>
+      )}
     </div>
   );
 }
