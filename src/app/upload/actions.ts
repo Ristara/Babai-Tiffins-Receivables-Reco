@@ -187,3 +187,57 @@ export async function uploadCsvForDate(
       skipped_orders > 0 ? { skipped_dates, skipped_orders } : undefined,
   };
 }
+
+export type DeleteState =
+  | { kind: "idle" }
+  | { kind: "error"; message: string }
+  | { kind: "success"; sale_date: string };
+
+// Wipe everything for a date: dashboard totals (daily_summaries cascades to
+// summary_lines), upload history (upload_dates), and any PayTm settlements.
+// The uploads audit rows are intentionally left as a log.
+export async function deleteDate(
+  _prev: DeleteState,
+  formData: FormData,
+): Promise<DeleteState> {
+  const sale_date = String(formData.get("sale_date") ?? "");
+  if (!DATE_RE.test(sale_date)) {
+    return { kind: "error", message: "Invalid date." };
+  }
+
+  const supabase = await createClient();
+
+  const { error: e1 } = await supabase
+    .from("daily_summaries")
+    .delete()
+    .eq("sale_date", sale_date);
+  if (e1) {
+    return { kind: "error", message: `Failed deleting summaries: ${e1.message}` };
+  }
+
+  const { error: e2 } = await supabase
+    .from("upload_dates")
+    .delete()
+    .eq("sale_date", sale_date);
+  if (e2) {
+    return {
+      kind: "error",
+      message: `Failed deleting upload history: ${e2.message}`,
+    };
+  }
+
+  const { error: e3 } = await supabase
+    .from("paytm_settlements")
+    .delete()
+    .eq("sale_date", sale_date);
+  if (e3) {
+    return {
+      kind: "error",
+      message: `Failed deleting settlements: ${e3.message}`,
+    };
+  }
+
+  revalidatePath("/upload");
+  revalidatePath("/dashboard");
+  return { kind: "success", sale_date };
+}

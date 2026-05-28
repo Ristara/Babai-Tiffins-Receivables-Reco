@@ -1,4 +1,5 @@
 import { RowUploadButton } from "./RowUploadButton";
+import { DeleteDateButton } from "./DeleteDateButton";
 
 interface UploadEntry {
   id: string;
@@ -121,6 +122,7 @@ export function HistoryRow({ sale_date, uploads }: Props) {
                   </li>
                 ))}
               </ul>
+              <DeleteDateButton sale_date={sale_date} />
             </div>
           </details>
         )}
