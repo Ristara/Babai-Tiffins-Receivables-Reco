@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { CATEGORIES, type Category } from "@/lib/categories";
+import { BranchMultiSelect } from "./BranchMultiSelect";
 
 export const dynamic = "force-dynamic";
 
 const BRANCHES = ["HSR", "SJP", "JPN"] as const;
-type BranchFilter = "All" | (typeof BRANCHES)[number];
 
 type Preset = "7" | "30" | "90" | "all" | "custom";
 
@@ -39,9 +39,16 @@ function resolveRange(rangeParam: string, fromP?: string, toP?: string) {
   return { from: addDays(today, -(days - 1)), to: today, preset };
 }
 
-function buildHref(branch: BranchFilter, preset: Preset, from: string, to: string) {
+function buildHref(
+  branches: string[],
+  preset: Preset,
+  from: string,
+  to: string,
+) {
   const sp = new URLSearchParams();
-  sp.set("branch", branch);
+  if (branches.length > 0 && branches.length < BRANCHES.length) {
+    sp.set("branches", branches.join(","));
+  }
   sp.set("range", preset);
   if (preset === "custom") {
     sp.set("from", from);
@@ -62,12 +69,13 @@ export default async function DashboardPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const branchParam = String(params.branch ?? "All");
-  const branch: BranchFilter = (
-    BRANCHES as readonly string[]
-  ).includes(branchParam)
-    ? (branchParam as BranchFilter)
-    : "All";
+  const requested = String(params.branches ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((b) => (BRANCHES as readonly string[]).includes(b));
+  // Effective selection: empty param means "all branches".
+  const selected = requested.length > 0 ? requested : [...BRANCHES];
+  const isSubset = selected.length < BRANCHES.length;
   const { from, to, preset } = resolveRange(
     String(params.range ?? "30"),
     params.from ? String(params.from) : undefined,
@@ -81,7 +89,7 @@ export default async function DashboardPage({
     .gte("sale_date", from)
     .lte("sale_date", to)
     .order("sale_date", { ascending: false });
-  if (branch !== "All") query = query.eq("branch", branch);
+  if (isSubset) query = query.in("branch", selected);
   const { data, error } = await query;
 
   // Pivot: sale_date -> category -> summed amount (across the filtered branches)
@@ -107,8 +115,10 @@ export default async function DashboardPage({
     for (const c of CATEGORIES) colTotals[c] += rec[c];
   const grandTotal = CATEGORIES.reduce((s, c) => s + colTotals[c], 0);
 
-  const branchTabs: BranchFilter[] = ["All", ...BRANCHES];
   const presets: Preset[] = ["7", "30", "90", "all"];
+  const branchLabel = isSubset ? selected.join(", ") : "all branches";
+  // The branches value to carry through range/date links (empty = all).
+  const branchesForLinks = isSubset ? selected : [];
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6 p-8">
@@ -116,8 +126,7 @@ export default async function DashboardPage({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="mt-1 text-sm text-zinc-600">
-            Daily sales by category. Showing {from} → {to}
-            {branch === "All" ? " · all branches" : ` · ${branch}`}.
+            Daily sales by category. Showing {from} → {to} · {branchLabel}.
           </p>
         </div>
         <Link
@@ -134,19 +143,7 @@ export default async function DashboardPage({
           <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
             Branch
           </span>
-          {branchTabs.map((b) => (
-            <Link
-              key={b}
-              href={buildHref(b, preset, from, to)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
-                b === branch
-                  ? "bg-zinc-900 text-white"
-                  : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
-              }`}
-            >
-              {b}
-            </Link>
-          ))}
+          <BranchMultiSelect selected={isSubset ? selected : []} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
@@ -155,7 +152,7 @@ export default async function DashboardPage({
           {presets.map((p) => (
             <Link
               key={p}
-              href={buildHref(branch, p, from, to)}
+              href={buildHref(branchesForLinks, p, from, to)}
               className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
                 p === preset
                   ? "bg-zinc-900 text-white"
@@ -172,7 +169,9 @@ export default async function DashboardPage({
             action="/dashboard"
             className="flex flex-wrap items-end gap-2"
           >
-            <input type="hidden" name="branch" value={branch} />
+            {isSubset && (
+              <input type="hidden" name="branches" value={selected.join(",")} />
+            )}
             <input type="hidden" name="range" value="custom" />
             <input
               type="date"
