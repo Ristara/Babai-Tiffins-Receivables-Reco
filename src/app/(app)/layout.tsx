@@ -1,6 +1,9 @@
 import { Sidebar } from "@/components/sidebar";
 import { getCurrentUser } from "@/lib/supabase/auth";
 
+// Always re-read the user's role on each request (never cache the layout).
+export const dynamic = "force-dynamic";
+
 export default async function AppLayout({
   children,
 }: {
