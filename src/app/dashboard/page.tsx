@@ -33,7 +33,10 @@ function emptyByCategory(): Record<
   return out;
 }
 
-function toBranchCard(row: SummaryRow): BranchCard {
+// Bank-settled amounts keyed by `${sale_date}|${branch}|${category}`.
+type SettlementMap = Map<string, number>;
+
+function toBranchCard(row: SummaryRow, settlements: SettlementMap): BranchCard {
   const by = emptyByCategory();
   for (const ln of row.summary_lines) {
     if ((CATEGORIES as readonly string[]).includes(ln.category)) {
@@ -43,13 +46,26 @@ function toBranchCard(row: SummaryRow): BranchCard {
       };
     }
   }
+  const settled: BranchCard["settled"] = {};
+  for (const cat of ["PayTm", "ODC"] as const) {
+    const key = `${row.sale_date}|${row.branch}|${cat}`;
+    settled[cat] = settlements.has(key) ? settlements.get(key)! : null;
+  }
   return {
     branch: row.branch,
     status: row.status,
     total_amount: Number(row.total_amount) || 0,
     total_orders: row.total_orders,
     by_category: by,
+    settled,
   };
+}
+
+interface PaytmSettlementRow {
+  sale_date: string;
+  branch: string;
+  category: string;
+  settled_amount: number | string;
 }
 
 export default async function DashboardPage() {
@@ -61,6 +77,18 @@ export default async function DashboardPage() {
     )
     .order("sale_date", { ascending: false })
     .order("branch", { ascending: true });
+
+  const { data: settleData } = await supabase
+    .from("paytm_settlements")
+    .select("sale_date, branch, category, settled_amount");
+
+  const settlements: SettlementMap = new Map();
+  for (const s of (settleData ?? []) as PaytmSettlementRow[]) {
+    settlements.set(
+      `${s.sale_date}|${s.branch}|${s.category}`,
+      Number(s.settled_amount) || 0,
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 p-8">
@@ -95,7 +123,9 @@ export default async function DashboardPage() {
                   branches: [],
                 });
               }
-              days.get(row.sale_date)!.branches.push(toBranchCard(row));
+              days.get(row.sale_date)!.branches.push(
+                toBranchCard(row, settlements),
+              );
             }
             const list = Array.from(days.values()).sort((a, b) =>
               b.sale_date.localeCompare(a.sale_date),

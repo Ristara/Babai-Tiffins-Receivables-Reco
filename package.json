@@ -13,6 +13,7 @@
     "@supabase/supabase-js": "^2.106.2",
     "next": "16.2.6",
     "papaparse": "^5.5.3",
+    "paytmchecksum": "^1.5.1",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
