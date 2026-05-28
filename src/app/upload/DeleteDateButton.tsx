@@ -10,7 +10,7 @@ export function DeleteDateButton({ sale_date }: { sale_date: string }) {
 
   const onClick = () => {
     const ok = window.confirm(
-      `Delete ALL data for ${sale_date}?\n\nThis removes the dashboard totals, the upload history, and any PayTm settlement for this date. It cannot be undone.`,
+      `Delete ALL data for ${sale_date}?\n\nThis removes the dashboard totals and the upload history for this date. It cannot be undone.`,
     );
     if (!ok) return;
     const fd = new FormData();
@@ -19,17 +19,17 @@ export function DeleteDateButton({ sale_date }: { sale_date: string }) {
   };
 
   return (
-    <div className="mt-2 border-t border-zinc-100 pt-2">
+    <div className="flex flex-col items-start gap-1">
       <button
         type="button"
         onClick={onClick}
         disabled={pending}
-        className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
+        className="inline-flex items-center rounded-md border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {pending ? "Deleting…" : "Delete all data for this date"}
+        {pending ? "Deleting…" : "Delete"}
       </button>
       {state.kind === "error" && (
-        <p className="mt-1 text-xs text-red-600">{state.message}</p>
+        <p className="max-w-[26ch] text-xs text-red-600">{state.message}</p>
       )}
     </div>
   );

@@ -63,7 +63,10 @@ export function HistoryRow({ sale_date, uploads }: Props) {
               Not uploaded
             </span>
           )}
-          <RowUploadButton sale_date={sale_date} hasUpload={hasUpload} />
+          <div className="flex flex-wrap items-start gap-2">
+            <RowUploadButton sale_date={sale_date} hasUpload={hasUpload} />
+            {hasUpload && <DeleteDateButton sale_date={sale_date} />}
+          </div>
         </div>
       </td>
       <td className="px-4 py-3 text-sm text-zinc-700">
@@ -122,7 +125,6 @@ export function HistoryRow({ sale_date, uploads }: Props) {
                   </li>
                 ))}
               </ul>
-              <DeleteDateButton sale_date={sale_date} />
             </div>
           </details>
         )}
