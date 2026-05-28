@@ -47,3 +47,28 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 
   return { id: user.id, email: user.email ?? null, role };
 }
+
+// Branch codes the user may access. Admins get every branch; staff get
+// only the branches assigned in user_branches. Read via the service-role
+// client so RLS can't interfere.
+export async function getAllowedBranches(user: CurrentUser): Promise<string[]> {
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch {
+    return [];
+  }
+
+  if (user.role === "admin") {
+    const { data } = await admin.from("branches").select("code").order("code");
+    return (data ?? []).map((b: { code: string }) => b.code);
+  }
+
+  const { data } = await admin
+    .from("user_branches")
+    .select("branch_code")
+    .eq("user_id", user.id);
+  return (data ?? [])
+    .map((b: { branch_code: string }) => b.branch_code)
+    .sort();
+}

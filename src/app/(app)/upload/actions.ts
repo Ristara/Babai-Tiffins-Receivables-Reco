@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { CATEGORIES } from "@/lib/categories";
 import { parsePetpoojaCsv, type ParseResult } from "@/lib/parse-csv";
+import { getCurrentUser, getAllowedBranches } from "@/lib/supabase/auth";
 import { revalidatePath } from "next/cache";
 
 export type UploadWarning = {
@@ -87,6 +88,13 @@ export async function uploadCsvForDate(
     };
   }
 
+  // Branch-access enforcement: a user can only save branches they're allowed.
+  const me = await getCurrentUser();
+  if (!me) {
+    return { kind: "error", message: "You must be signed in." };
+  }
+  const allowed = new Set(await getAllowedBranches(me));
+
   const supabase = await createClient();
 
   // 1. Audit row for this upload (counts reflect the whole file).
@@ -115,6 +123,8 @@ export async function uploadCsvForDate(
   let branches_saved = 0;
   for (const day of matchingDays) {
     for (const branch of day.branches) {
+      // Skip branches this user isn't allowed to write.
+      if (!allowed.has(branch.branch)) continue;
       orders_saved += branch.total_orders;
       branches_saved += 1;
 

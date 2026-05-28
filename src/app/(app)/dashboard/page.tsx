@@ -1,11 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CATEGORIES, type Category } from "@/lib/categories";
+import { getCurrentUser, getAllowedBranches } from "@/lib/supabase/auth";
 import { BranchMultiSelect } from "./BranchMultiSelect";
 
 export const dynamic = "force-dynamic";
-
-const BRANCHES = ["HSR", "SJP", "JPN"] as const;
 
 type Preset = "7" | "30" | "90" | "all" | "custom";
 
@@ -46,7 +46,7 @@ function buildHref(
   to: string,
 ) {
   const sp = new URLSearchParams();
-  if (branches.length > 0 && branches.length < BRANCHES.length) {
+  if (branches.length > 0) {
     sp.set("branches", branches.join(","));
   }
   sp.set("range", preset);
@@ -68,14 +68,19 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const me = await getCurrentUser();
+  if (!me) redirect("/login");
+  // Branches this user is allowed to see (admin = all).
+  const ALLOWED = await getAllowedBranches(me);
+
   const params = await searchParams;
   const requested = String(params.branches ?? "")
     .split(",")
     .map((s) => s.trim())
-    .filter((b) => (BRANCHES as readonly string[]).includes(b));
-  // Effective selection: empty param means "all branches".
-  const selected = requested.length > 0 ? requested : [...BRANCHES];
-  const isSubset = selected.length < BRANCHES.length;
+    .filter((b) => ALLOWED.includes(b));
+  // Effective selection: empty param means "all my branches".
+  const selected = requested.length > 0 ? requested : ALLOWED;
+  const isSubset = selected.length < ALLOWED.length;
   const { from, to, preset } = resolveRange(
     String(params.range ?? "30"),
     params.from ? String(params.from) : undefined,
@@ -89,7 +94,8 @@ export default async function DashboardPage({
     .gte("sale_date", from)
     .lte("sale_date", to)
     .order("sale_date", { ascending: false });
-  if (isSubset) query = query.in("branch", selected);
+  // Always constrain to the user's allowed branches (never show beyond).
+  query = query.in("branch", selected.length > 0 ? selected : ALLOWED);
   const { data, error } = await query;
 
   // Pivot: sale_date -> category -> summed amount (across the filtered branches)
@@ -116,8 +122,9 @@ export default async function DashboardPage({
   const grandTotal = CATEGORIES.reduce((s, c) => s + colTotals[c], 0);
 
   const presets: Preset[] = ["7", "30", "90", "all"];
-  const branchLabel = isSubset ? selected.join(", ") : "all branches";
-  // The branches value to carry through range/date links (empty = all).
+  const branchLabel =
+    selected.length === 0 ? "no branches" : selected.join(", ");
+  // The branches value to carry through range/date links (empty = all allowed).
   const branchesForLinks = isSubset ? selected : [];
 
   return (
@@ -143,7 +150,10 @@ export default async function DashboardPage({
           <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
             Branch
           </span>
-          <BranchMultiSelect selected={isSubset ? selected : []} />
+          <BranchMultiSelect
+            selected={isSubset ? selected : []}
+            options={ALLOWED}
+          />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">

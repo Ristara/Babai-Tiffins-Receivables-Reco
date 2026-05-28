@@ -3,9 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-const BRANCHES = ["HSR", "SJP", "JPN"];
-
-export function BranchMultiSelect({ selected }: { selected: string[] }) {
+export function BranchMultiSelect({
+  selected,
+  options,
+}: {
+  selected: string[];
+  options: string[];
+}) {
+  const BRANCHES = options;
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();

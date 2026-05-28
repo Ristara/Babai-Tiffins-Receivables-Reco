@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser, getAllowedBranches } from "@/lib/supabase/auth";
 import { type Category } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
 
-const BRANCHES = ["HSR", "SJP", "JPN"] as const;
 const DASH = "—";
 
 const inr0 = (n: number) => Math.round(n).toLocaleString("en-IN");
@@ -29,11 +30,16 @@ export default async function PosTrackerPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const me = await getCurrentUser();
+  if (!me) redirect("/login");
+  const ALLOWED = await getAllowedBranches(me);
+
   const params = await searchParams;
-  const branchParam = String(params.branch ?? "HSR");
-  const branch = (BRANCHES as readonly string[]).includes(branchParam)
+  const branchParam = String(params.branch ?? "");
+  // Only allow an outlet the user can access; otherwise default to the first.
+  const branch = ALLOWED.includes(branchParam)
     ? branchParam
-    : "HSR";
+    : (ALLOWED[0] ?? "");
 
   const supabase = await createClient();
 
@@ -134,7 +140,7 @@ export default async function PosTrackerPage({
         <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
           Outlet
         </span>
-        {BRANCHES.map((b) => (
+        {ALLOWED.map((b) => (
           <Link
             key={b}
             href={`/pos-tracker?branch=${b}&date=${date}`}
