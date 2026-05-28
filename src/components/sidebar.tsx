@@ -84,7 +84,29 @@ export function Sidebar({
       </div>
       <nav className="flex-1 px-3 pb-4">
         <ul className="space-y-1">
-          {items.map((item) => {
+          {[
+            ...items,
+            ...(role === "admin"
+              ? [
+                  {
+                    href: "/admin",
+                    label: "Admin",
+                    icon: (
+                      <svg
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        className="h-4 w-4"
+                      >
+                        <circle cx="10" cy="6.5" r="3" />
+                        <path d="M4 16c0-3 2.7-5 6-5s6 2 6 5" strokeLinecap="round" />
+                      </svg>
+                    ),
+                  } as NavItem,
+                ]
+              : []),
+          ].map((item) => {
             const active =
               pathname === item.href ||
               (item.href !== "/" && pathname.startsWith(item.href));
