@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { CreateBranchForm } from "./CreateBranchForm";
 import { AddUserForm } from "./AddUserForm";
@@ -21,12 +21,12 @@ export default async function AdminPage() {
   if (!me) redirect("/login");
   if (me.role !== "admin") redirect("/dashboard");
 
-  const supabase = await createClient();
+  const admin = createAdminClient();
   const [{ data: branches }, { data: profiles }, { data: userBranches }] =
     await Promise.all([
-      supabase.from("branches").select("code, name").order("code"),
-      supabase.from("profiles").select("id, email, role").order("email"),
-      supabase.from("user_branches").select("user_id, branch_code"),
+      admin.from("branches").select("code, name").order("code"),
+      admin.from("profiles").select("id, email, role").order("email"),
+      admin.from("user_branches").select("user_id, branch_code"),
     ]);
 
   const branchList = (branches ?? []) as { code: string; name: string }[];

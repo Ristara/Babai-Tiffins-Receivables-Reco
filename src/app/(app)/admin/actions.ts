@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/supabase/auth";
 
@@ -34,10 +33,14 @@ export async function createBranch(
     return { kind: "error", message: "Code and name are required." };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("branches")
-    .insert({ code, name });
+  // Use the service-role client so table RLS can't block the write.
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch (err) {
+    return { kind: "error", message: (err as Error).message };
+  }
+  const { error } = await admin.from("branches").insert({ code, name });
   if (error) {
     return { kind: "error", message: error.message };
   }
