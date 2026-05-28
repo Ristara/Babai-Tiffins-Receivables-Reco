@@ -24,7 +24,6 @@ interface Line {
 }
 
 const EMPTY_MANUAL: PosManual = {
-  magicpin: null,
   upi: null,
   edc_machine: null,
   wallet: null,
@@ -86,6 +85,7 @@ export default async function PosTrackerPage({
     PayTm: { amount: 0, orders: 0 },
     Zomato: { amount: 0, orders: 0 },
     Swiggy: { amount: 0, orders: 0 },
+    Magicpin: { amount: 0, orders: 0 },
     Ownly: { amount: 0, orders: 0 },
     Ajantha: { amount: 0, orders: 0 },
     ODC: { amount: 0, orders: 0 },
@@ -122,6 +122,7 @@ export default async function PosTrackerPage({
     totalOrders: row?.total_orders || 0,
     swiggy: cat.Swiggy.amount,
     zomato: cat.Zomato.amount,
+    magicpin: cat.Magicpin.amount,
     ownly: cat.Ownly.amount,
     billingCounter: cat.Cash.amount + cat.PayTm.amount,
     cashSale: cat.Cash.amount,

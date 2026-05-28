@@ -3,6 +3,7 @@ export type Category =
   | "PayTm"
   | "Zomato"
   | "Swiggy"
+  | "Magicpin"
   | "Ownly"
   | "Ajantha"
   | "ODC"
@@ -14,6 +15,7 @@ export const CATEGORIES: Category[] = [
   "PayTm",
   "Zomato",
   "Swiggy",
+  "Magicpin",
   "Ownly",
   "Ajantha",
   "ODC",
@@ -28,6 +30,7 @@ export const SETTLEMENT: Record<Category, SettlementType> = {
   PayTm: "immediate",
   Zomato: "weekly",
   Swiggy: "weekly",
+  Magicpin: "weekly",
   Ownly: "daily",
   Ajantha: "credit",
   ODC: "credit",
@@ -47,6 +50,7 @@ export function classifyOrder(row: {
 
   if (sub.includes("zomato")) return "Zomato";
   if (sub.includes("swiggy")) return "Swiggy";
+  if (sub.includes("magicpin")) return "Magicpin";
   if (sub.includes("ownly")) return "Ownly";
   if (sub === "ajantha associates") return "Ajantha";
   if (sub === "odc") return "ODC";

@@ -67,7 +67,6 @@ export async function savePosManual(
   const row = {
     sale_date,
     branch,
-    magicpin: num(formData.get("magicpin")),
     upi: num(formData.get("upi")),
     edc_machine: num(formData.get("edc_machine")),
     wallet: num(formData.get("wallet")),

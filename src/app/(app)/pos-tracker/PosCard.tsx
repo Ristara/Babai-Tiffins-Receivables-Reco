@@ -5,7 +5,6 @@ import { savePosManual, type SaveState } from "./actions";
 import { LockButton } from "./LockButton";
 
 export interface PosManual {
-  magicpin: number | null;
   upi: number | null;
   edc_machine: number | null;
   wallet: number | null;
@@ -57,6 +56,7 @@ export interface Derived {
   totalOrders: number;
   swiggy: number;
   zomato: number;
+  magicpin: number;
   ownly: number;
   billingCounter: number;
   cashSale: number;
@@ -161,9 +161,7 @@ export function PosCard({
                 <tbody>
                   <Row label="Swiggy">{inr0(derived.swiggy)}</Row>
                   <Row label="Zomato">{inr0(derived.zomato)}</Row>
-                  <Row label="Magicpin">
-                    <NumCell name="magicpin" value={manual.magicpin} />
-                  </Row>
+                  <Row label="Magicpin">{inr0(derived.magicpin)}</Row>
                   <Row label="Ownly">{inr0(derived.ownly)}</Row>
                   <Row label="Billing Counter">
                     {inr0(derived.billingCounter)}
