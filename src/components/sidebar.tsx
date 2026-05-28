@@ -29,6 +29,22 @@ const items: NavItem[] = [
     ),
   },
   {
+    href: "/pos-tracker",
+    label: "POS Tracker",
+    icon: (
+      <svg
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        className="h-4 w-4"
+      >
+        <rect x="2.5" y="3.5" width="15" height="10" rx="1" />
+        <path d="M7 17h6M10 13.5V17" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     href: "/upload",
     label: "Upload",
     icon: (
